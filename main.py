@@ -65,7 +65,7 @@ class CircleClicker(threading.Thread):
     @staticmethod
     def preprocess_image(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        gray = cv2.GaussianBlur(gray, (7, 7), 0)
         gray, img_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         gray = cv2.bitwise_not(img_bin)
         return gray
@@ -146,9 +146,6 @@ class KeyboardListeningThread:
             for thread in self.threads_to_stop:
                 thread.stop()
             self.kb_listener.stop()
-        # if key == self.pause_key:
-        #     time.sleep(0.4)
-        #     self.threads_to_stop[0].toggle_pause()
 
 
 class AnimatedGraph(multiprocessing.Process):
@@ -182,6 +179,9 @@ class AnimatedGraph(multiprocessing.Process):
             while not self._stop_event.is_set():
                 try:
                     new_value, new_value_time = self.new_values_queue.get(block=False)
+                    # hard cap 100,000 score diff change
+                    if self.score_delta and abs(new_value - self.score_delta[-1][0]) >= 100000:
+                        continue
                     self.score_delta.append((new_value, new_value_time))
                     self.scrub_outliers()
 
