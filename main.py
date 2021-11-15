@@ -93,7 +93,8 @@ class CircleClicker(threading.Thread):
                     "width": self.right_box[2] - self.right_box[0],
                     "height": self.right_box[3] - self.right_box[1],
                 }))
-                _screengrab_time = datetime.datetime.now()
+                # _screengrab_time = datetime.datetime.now()
+                _screengrab_time = time.perf_counter()
 
                 left_screen = self.preprocess_image(left_screen)
                 right_screen = self.preprocess_image(right_screen)
@@ -127,7 +128,7 @@ class CircleClicker(threading.Thread):
                     print(f"{left_score} | {right_score} ({right_score - left_score})")
                     score_delta = right_score - left_score
 
-                    self.queue_to_graph.put(score_delta)
+                    self.queue_to_graph.put((score_delta, _screengrab_time))
                 except ValueError:
                     pass
 
@@ -163,7 +164,8 @@ class AnimatedGraph(multiprocessing.Process):
             return
 
         indices_to_remove = []
-        _values_to_scrub = self.score_delta[-scrub_length:]
+        scores, _ = zip(*self.score_delta)
+        _values_to_scrub = scores[-scrub_length:]
         for i in range(scrub_length-2):
             diff_sum = abs(_values_to_scrub[i+1] - _values_to_scrub[i])
             diff_sum += abs(_values_to_scrub[i+2] - _values_to_scrub[i+1])
@@ -179,16 +181,18 @@ class AnimatedGraph(multiprocessing.Process):
         try:
             while not self._stop_event.is_set():
                 try:
-                    new_value = self.new_values_queue.get(block=False)
-                    self.score_delta.append(new_value)
+                    new_value, new_value_time = self.new_values_queue.get(block=False)
+                    self.score_delta.append((new_value, new_value_time))
                     self.scrub_outliers()
 
                     plt.cla()
-                    plt.plot(self.score_delta, label="Score delta")
+                    y, x = zip(*self.score_delta)
+                    plt.plot(x, y, label="Score delta")
                     # plt.yscale("log")
 
                     plt.grid()
                     plt.axhline(y=0, color="black")
+                    plt.annotate(str(y[-1]), xy=(x[-1], y[-1]), xytext=(x[-1], y[-1] + 0.5),)
                     plt.legend()
                 except queue.Empty:
                     continue
