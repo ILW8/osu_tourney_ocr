@@ -1,3 +1,4 @@
+import datetime
 import threading
 
 import cv2
@@ -92,6 +93,7 @@ class CircleClicker(threading.Thread):
                     "width": self.right_box[2] - self.right_box[0],
                     "height": self.right_box[3] - self.right_box[1],
                 }))
+                _screengrab_time = datetime.datetime.now()
 
                 left_screen = self.preprocess_image(left_screen)
                 right_screen = self.preprocess_image(right_screen)
@@ -100,22 +102,31 @@ class CircleClicker(threading.Thread):
                 cv2.imshow("", output_view)
                 cv2.waitKey(1)
 
-                left_score = pytesseract.image_to_string(left_screen, config="outputbase digits")
-                right_score = pytesseract.image_to_string(right_screen, config="outputbase digits")
+                left_scores = []
+                right_scores = []
+                for i in range(2):
+                    left_scores.append(self.strip_non_number(pytesseract.image_to_string(left_screen,
+                                                                                         config=self.other_options)))
+                    right_scores.append(self.strip_non_number(pytesseract.image_to_string(right_screen,
+                                                                                          config=self.other_options)))
+
+                left_scores = set(left_scores)
+                right_scores = set(right_scores)
+                if len(left_scores) != 1 or len(right_scores) != 1:
+                    print("got different results, discarding OCR results")
+                    continue
+
+                left_score = left_scores.pop()
+                right_score = right_scores.pop()
 
                 # print(left_score, right_score)
 
-                left_score = self.strip_non_number(left_score)
-                right_score = self.strip_non_number(right_score)
                 try:
                     left_score = int(left_score)
                     right_score = int(right_score)
                     print(f"{left_score} | {right_score} ({right_score - left_score})")
                     score_delta = right_score - left_score
-                    if self._last != 0 and abs(score_delta) > 4 * max(10000, abs(self._last)):
-                        print("Score delta too large")
-                        continue
-                    self._last = score_delta
+
                     self.queue_to_graph.put(score_delta)
                 except ValueError:
                     pass
@@ -146,18 +157,38 @@ class AnimatedGraph(multiprocessing.Process):
         self._stop_event = multiprocessing.Event()
         self.score_delta = []
 
+    def scrub_outliers(self):
+        scrub_length = 5
+        if len(self.score_delta) < scrub_length:
+            return
+
+        indices_to_remove = []
+        _values_to_scrub = self.score_delta[-scrub_length:]
+        for i in range(scrub_length-2):
+            diff_sum = abs(_values_to_scrub[i+1] - _values_to_scrub[i])
+            diff_sum += abs(_values_to_scrub[i+2] - _values_to_scrub[i+1])
+            diff_abs = abs(_values_to_scrub[i+2] - _values_to_scrub[i])
+
+            if diff_sum > 3 * diff_abs:
+                indices_to_remove.append(i+1)
+
+        for removed, i in enumerate(indices_to_remove):
+            self.score_delta.pop(len(self.score_delta) - scrub_length - removed + i)
+
     def run(self):
         try:
-            while not self._stop_event.set():
+            while not self._stop_event.is_set():
                 try:
                     new_value = self.new_values_queue.get(block=False)
                     self.score_delta.append(new_value)
+                    self.scrub_outliers()
 
                     plt.cla()
                     plt.plot(self.score_delta, label="Score delta")
                     # plt.yscale("log")
 
                     plt.grid()
+                    plt.axhline(y=0, color="black")
                     plt.legend()
                 except queue.Empty:
                     continue
@@ -190,4 +221,5 @@ if __name__ == '__main__':
     klt = KeyboardListeningThread(keyboard.Key.esc, [cc, animated_graph])
     klt.kb_listener.join()
     cc.join()
+    animated_graph.join()
     print("Exiting...")
