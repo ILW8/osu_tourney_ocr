@@ -4,6 +4,7 @@
 - Install tesseract
 - (optional) create a virtual environment
 - Install python dependencies `pip3 install -r requirements.txt`
+- Update `pytesseract.pytesseract.tesseract_cmd` in `main.py` as needed
 - Run `python3 main.py`
 - Specify score bounds:
   1. Click top left corner of osu! tournament client team score box,
