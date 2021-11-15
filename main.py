@@ -65,7 +65,7 @@ class CircleClicker(threading.Thread):
     @staticmethod
     def preprocess_image(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
         gray, img_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         gray = cv2.bitwise_not(img_bin)
         return gray
@@ -107,9 +107,9 @@ class CircleClicker(threading.Thread):
                 right_scores = []
                 for i in range(2):
                     left_scores.append(self.strip_non_number(pytesseract.image_to_string(left_screen,
-                                                                                         config=self.other_options)))
+                                                                                         config="outputbase digits")))
                     right_scores.append(self.strip_non_number(pytesseract.image_to_string(right_screen,
-                                                                                          config=self.other_options)))
+                                                                                          config="outputbase digits")))
 
                 left_scores = set(left_scores)
                 right_scores = set(right_scores)
